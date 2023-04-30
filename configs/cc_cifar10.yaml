@@ -1,0 +1,23 @@
+
+clustering_framework: cc
+project_name: deep_clustering
+group: cifar10
+run_name: CC
+dataset: cifar10
+dataset_path: "./data_folder/CIFAR10"
+
+backbone: resnet34
+proj_dim: 128
+
+optimizer: adam
+lr: 0.0003
+weight_decay: 0.
+
+
+epochs: 1000
+eval_interval: 10
+crop_size: 224
+batch_size: 256
+
+clusters: 10
+clusterings: 1

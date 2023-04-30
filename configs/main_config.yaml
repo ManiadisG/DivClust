@@ -1,0 +1,29 @@
+dataset: cifar10
+dataset_path: "./data_folder/CIFAR10"
+classes_no: 10
+
+num_workers: 4
+gpu: 0
+seed: 0
+mixed_precision: True
+
+
+
+clusterings: 20
+clusters: 10
+
+seed: 0
+
+epochs: 10
+eval_interval: 1
+batch_size: 128
+
+lr_schedule: cosine
+
+run_name: exp
+checkpoint_path: None
+
+NMI_target: 1.
+NMI_interval: 20
+threshold_rate: 0.99
+divclust_mbank_size: 10000
