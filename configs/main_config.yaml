@@ -7,8 +7,6 @@ gpu: 0
 seed: 0
 mixed_precision: True
 
-
-
 clusterings: 20
 clusters: 10
 

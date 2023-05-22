@@ -6,7 +6,7 @@ from utils.misc import export_fn
 @export_fn
 def build_model(args, logger=None):
     if args.clustering_framework.lower() == "cc":
-        from engine.CC.model import CC
+        from engine.CC import CC
         model = CC(args)
         model_name="CC"
     if logger is not None:

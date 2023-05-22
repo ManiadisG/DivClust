@@ -1,6 +1,5 @@
 from data.dataset_classes import ImageDataset
-from data.augmentations import PICATransforms
-from utils.misc import export_fn
+from data.transforms import PICATransforms
 from data import dataset_readers
 
 
@@ -17,7 +16,5 @@ def _get_pica_datasets(data, labels, resize_shape, crop_size, norm_mean, norm_st
 
 def cifar10_pica(dataset_path=None, transforms_no=3, *args, **kwargs):
     data, labels = dataset_readers.get_cifar10(dataset_path, ["merge"])
-    norm_mean, norm_std = dataset_readers.dataset_statistics('cifar10')
     train_dataset, val_dataset = _get_pica_datasets(data, labels, 40, 32, (0.4914, 0.4822, 0.4465), (0.247, 0.243, 0.261), transforms_no=transforms_no)
     return train_dataset, val_dataset
-

@@ -15,7 +15,6 @@ import functools
 from termcolor import colored
 import argparse
 import traceback
-from utils.misc import Timer
 
 os.environ['WANDB_START_METHOD'] = "thread"
 os.environ['WANDB_SILENT'] = "true"
@@ -60,29 +59,15 @@ class Logger:
         self.wandb_mode = args.wandb_mode
         self.resume = args.resume
         self.args = args
-        self.ddp = dist.is_initialized()
 
         self.config_dict = args.__dict__
-        if self.ddp:
-            self.rank = dist.get_rank()
-            self.world_size = dist.get_world_size()
-        else:
-            self.rank = 0
-            self.world_size = 0
         if not os.path.exists(self.output_dir):
             os.makedirs(self.output_dir, exist_ok=True)
-        
-        if self.ddp:
-            dist.barrier()
 
         self.wandb_init()
-        self.logger = create_logger(self.output_dir, self.rank)
+        self.logger = create_logger(self.output_dir)
         self.print(f"Initializing experiment {self.run_name}\n")
-        self.print(f"Initialized ddp - Global rank: {self.rank} of {self.world_size}")
         self.metric_handler = MetricHandler()
-
-        if self.ddp:
-            dist.barrier()
         self.print_args()
 
     def print_epoch_progress(self, step, of_steps=None, epoch=None, of_epochs=None):
@@ -132,11 +117,11 @@ class Logger:
     def epoch_end(self, epoch, of_epochs=None, reset_metrics=True):
         self.print_epoch_end(epoch, of_epochs)
         avg_metrics = self.metric_handler.get_avg()
-        if self.wandb_mode!="off" and self.rank==0:
+        if self.wandb_mode!="off":
             wandb.log(avg_metrics, step=epoch)
         if reset_metrics:
             self.metric_handler.reset()
-        if self.wandb_mode!="off" and self.rank==0:
+        if self.wandb_mode!="off":
             self.upload_logs()
 
     def rounding(self, v):
@@ -170,17 +155,10 @@ class Logger:
         self.metric_handler.add_metrics(metrics)
 
     def log_and_write(self, metrics: dict, epoch=None):
-        if self.rank==0:
-            wandb.log(metrics, step=epoch)
+        wandb.log(metrics, step=epoch)
 
-    def print(self, msg, end="\n", only_main_rank=False):
-        """
-        Handles prints. If lines are to be overwritten, they are printed normally, otherwise they are printed
-        via the logger and stored to the corresponding log txt
-        """
-        if only_main_rank and self.rank != 0:
-            return None
-        if end == "\r" and self.rank == 0:
+    def print(self, msg, end="\n"):
+        if end == "\r":
             print(self.adjust_print_string_length(msg), end="\r")
         else:
             self.logger.info(msg)
@@ -208,7 +186,7 @@ class Logger:
         return text
 
     def wandb_init(self):
-        if self.wandb_mode=="off" or self.rank!=0:
+        if self.wandb_mode=="off":
             return None
         wandb.init(project=self.project_name, entity=self.entity, config=self.config_dict, group=self.group,
                    tags=self.tags, notes=self.notes, dir=self.output_dir, id=self.args.run_id,
@@ -226,16 +204,15 @@ class Logger:
             f.write(to_write)
 
     def upload_logs(self):
-        for rank in range(self.args.world_size):
-            try:
-                wandb.save(f"{self.output_dir}/log_rank{rank}.txt", base_path=self.output_dir)
-            except Exception as e:
-                msg = traceback.format_exc()
-                self.print(f"Failed to upload log from rank {rank} of {self.args.world_size}")
-                self.print(f"Error: {msg}")
+        try:
+            wandb.save(f"{self.output_dir}/log.txt", base_path=self.output_dir)
+        except Exception as e:
+            msg = traceback.format_exc()
+            self.print(f"Failed to upload log")
+            self.print(f"Error: {msg}")
 
     def finish(self, crashed=False):
-        if self.wandb_mode!="off" and self.rank==0:
+        if self.wandb_mode!="off":
             self.upload_logs()
             if crashed:
                 wandb.finish(quiet=True, exit_code=1)
@@ -266,15 +243,12 @@ class MetricHandler:
             else:
                 k_value = v["value"].clone().detach()
             k_count = v["count"].clone()
-            if dist.is_initialized():
-                dist.all_reduce(k_value)
-                dist.all_reduce(k_count)
             metric_averages[k] = k_value/k_count
         return metric_averages
 
 
 @functools.lru_cache()
-def create_logger(output_dir, dist_rank=0, name=''):
+def create_logger(output_dir, name=''):
     # create logger
     logger = logging.getLogger(name)
     logger.setLevel(logging.DEBUG)
@@ -286,19 +260,17 @@ def create_logger(output_dir, dist_rank=0, name=''):
     color_fmt = colored('[%(asctime)s]', 'green') + \
         colored('(%(filename)s %(lineno)d)', 'yellow') + ': %(message)s'
 
-    # create console handlers for master process
-    if dist_rank == 0:
-        console_handler = logging.StreamHandler(sys.stdout)
-        console_handler.setLevel(logging.DEBUG)
-        console_handler.setFormatter(logging.Formatter(
-            fmt=color_fmt, datefmt='%Y-%m-%d %H:%M:%S'))
-        logger.addHandler(console_handler)
+    console_handler = logging.StreamHandler(sys.stdout)
+    console_handler.setLevel(logging.DEBUG)
+    console_handler.setFormatter(logging.Formatter(
+        fmt=color_fmt, datefmt='%Y-%m-%d %H:%M:%S'))
+    logger.addHandler(console_handler)
 
     # create file handlers
     if not os.path.isdir(output_dir):
         os.makedirs(output_dir, exist_ok=True)
     file_handler = logging.FileHandler(os.path.join(
-        output_dir, f'log_rank{dist_rank}.txt'), mode='a')
+        output_dir, f'log.txt'), mode='a')
     file_handler.setLevel(logging.DEBUG)
     file_handler.setFormatter(logging.Formatter(
         fmt=fmt, datefmt='%Y-%m-%d %H:%M:%S'))

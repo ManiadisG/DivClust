@@ -8,14 +8,15 @@ from scipy.optimize import linear_sum_assignment as linear_assignment
 from sklearn.metrics import normalized_mutual_info_score, adjusted_rand_score
 import math
 
+EPS = 10 ** -6
+
 class DivClustLoss(torch.nn.Module):
 
-    def __init__(self, threshold=1., NMI_target=1., NMI_interval=5, NMI_measurement="aggregate", threshold_rate=0.99, divclust_mbank_size=10000, *args, **kwargs):
+    def __init__(self, threshold=1., NMI_target=1., NMI_interval=5, threshold_rate=0.99, divclust_mbank_size=10000, *args, **kwargs):
         super(DivClustLoss, self).__init__()
         self.threshold = threshold
         self.NMI_target = NMI_target
         self.NMI_interval = NMI_interval
-        self.NMI_measurement = NMI_measurement
         self.threshold_rate = threshold_rate
         self.current_threshold = threshold
         self.divclust_mbank_size = divclust_mbank_size
@@ -75,17 +76,16 @@ class DivClustLoss(torch.nn.Module):
         if step is None or step % self.NMI_interval == 0:
             k = self.memory_bank.shape[0]
             NMIs = []
-            if self.NMI_measurement == "aggregate":
-                for k1 in range(k):
-                    for k2 in range(k1 + 1, k):
-                        NMIs.append(normalized_mutual_info_score(self.memory_bank[k1], self.memory_bank[k2]))
-                NMI = np.mean(NMIs)
-                if NMI > NMI_target:
-                    threshold = self.current_threshold * self.threshold_rate
-                else:
-                    threshold = self.current_threshold * (2-self.threshold_rate)
-                threshold = max(0, threshold)
-                threshold = min(1., threshold)
+            for k1 in range(k):
+                for k2 in range(k1 + 1, k):
+                    NMIs.append(normalized_mutual_info_score(self.memory_bank[k1], self.memory_bank[k2]))
+            NMI = np.mean(NMIs)
+            if NMI > NMI_target:
+                threshold = self.current_threshold * self.threshold_rate
+            else:
+                threshold = self.current_threshold * (2-self.threshold_rate)
+            threshold = max(0, threshold)
+            threshold = min(1., threshold)
         return threshold
 
 
@@ -165,6 +165,36 @@ class CCLoss(nn.Module):
         return loss_ce, loss_ne, loss_cc
 
 
+class PICALoss(nn.Module):
+    def __init__(self, l=2.):
+        super(PICALoss, self).__init__()
+        self.CE = nn.CrossEntropyLoss()
+        self.l = l
+        self.labels = None
+
+    def forward(self, x1, x2):
+        if len(x1.shape) == 2:
+            x1 = x1.unsqueeze(0)
+        if len(x2.shape) == 2:
+            x2 = x2.unsqueeze(0)
+        k, n_or, c = x1.shape
+        n_tr = x2.shape[1]
+        x1 = x1.repeat(1, n_tr // n_or, 1)
+        assert x1.shape == x2.shape
+
+        if self.labels is None:
+            self.labels = torch.arange(c, device=x1.device)
+        pui = torch.einsum("kna, knb->kab", F.normalize(x1, p=2, dim=1), F.normalize(x2, p=2, dim=1))
+        losses = [self.get_k_loss(pui[k_], x1[k_]) for k_ in range(k)]
+        return losses
+
+    def get_k_loss(self, pui_k, x_k):
+        loss_ce = self.CE(pui_k, self.labels)
+        p = x_k.sum(0).view(-1)
+        p /= p.sum()
+        loss_ne = math.log(p.size(0)) + (p * (p + EPS).log()).sum()
+        return loss_ce + self.l * loss_ne
+
 def clustering_accuracy_metrics(cluster_labels, ground_truth):
     if isinstance(cluster_labels, torch.Tensor):
         cluster_labels = cluster_labels.detach().cpu().numpy()
@@ -179,41 +209,25 @@ def clustering_accuracy_metrics(cluster_labels, ground_truth):
 
     metrics = {}
     cluster_accuracies, cluster_nmis, cluster_aris = [], [], []
+    interclustering_nmi = []
     clusterings = len(cluster_labels)
-    if len(ground_truth.shape) == 1:
-        for k in range(clusterings):
-            cluster_accuracies.append(clustering_acc(cluster_labels[k], ground_truth))
-            cluster_nmis.append(np.round(normalized_mutual_info_score(cluster_labels[k], ground_truth), 5))
-            cluster_aris.append(np.round(adjusted_rand_score(ground_truth, cluster_labels[k]), 5))
-            metrics["cluster_acc_" + str(k)] = cluster_accuracies[-1]
-            metrics["cluster_nmi_" + str(k)] = cluster_nmis[-1]
-            metrics["cluster_ari_" + str(k)] = cluster_aris[-1]
-        metrics["max_cluster_acc"], metrics["mean_cluster_acc"], metrics["min_cluster_acc"] = np.max(
-            cluster_accuracies), np.mean(cluster_accuracies), np.min(cluster_accuracies)
-        metrics["max_cluster_nmi"], metrics["mean_cluster_nmi"], metrics["min_cluster_nmi"] = np.max(
-            cluster_nmis), np.mean(cluster_nmis), np.min(cluster_nmis)
-        metrics["max_cluster_ari"], metrics["mean_cluster_ari"], metrics["min_cluster_ari"] = np.max(
-            cluster_aris), np.mean(cluster_aris), np.min(cluster_aris)
-    else:
-        gt_no = ground_truth.shape[0]
-        for g in range(gt_no):
-            best_acc, best_nmi, best_ari = -1, -1, -1
-            for k in range(clusterings):
-                acc_score = clustering_acc(cluster_labels[k], ground_truth[g])
-                nmi_score = np.round(normalized_mutual_info_score(ground_truth[g], cluster_labels[k]), 5)
-                ari_score = np.round(adjusted_rand_score(ground_truth[g], cluster_labels[k]), 5)
-                metrics[f"cluster_acc_K{k}_L{g}_"] = acc_score
-                metrics[f"cluster_nmi_K{k}_L{g}"] = nmi_score
-                metrics[f"cluster_ari_K{k}_L{g}"] = ari_score
-                if acc_score > best_acc:
-                    best_acc = acc_score
-                    metrics[f"best_L{g}_acc"] = acc_score
-                if nmi_score > best_nmi:
-                    best_nmi = nmi_score
-                    metrics[f"best_L{g}_nmi"] = nmi_score
-                if ari_score > best_ari:
-                    best_ari = ari_score
-                    metrics[f"best_L{g}_ari"] = ari_score
+    for k in range(clusterings):
+        for j in range(clusterings):
+            if j>k:
+                interclustering_nmi.append(np.round(normalized_mutual_info_score(cluster_labels[k], cluster_labels[j]), 5))
+        cluster_accuracies.append(clustering_acc(cluster_labels[k], ground_truth))
+        cluster_nmis.append(np.round(normalized_mutual_info_score(cluster_labels[k], ground_truth), 5))
+        cluster_aris.append(np.round(adjusted_rand_score(ground_truth, cluster_labels[k]), 5))
+        metrics["cluster_acc_" + str(k)] = cluster_accuracies[-1]
+        metrics["cluster_nmi_" + str(k)] = cluster_nmis[-1]
+        metrics["cluster_ari_" + str(k)] = cluster_aris[-1]
+    metrics["max_cluster_acc"], metrics["mean_cluster_acc"], metrics["min_cluster_acc"] = np.max(
+        cluster_accuracies), np.mean(cluster_accuracies), np.min(cluster_accuracies)
+    metrics["max_cluster_nmi"], metrics["mean_cluster_nmi"], metrics["min_cluster_nmi"] = np.max(
+        cluster_nmis), np.mean(cluster_nmis), np.min(cluster_nmis)
+    metrics["max_cluster_ari"], metrics["mean_cluster_ari"], metrics["min_cluster_ari"] = np.max(
+        cluster_aris), np.mean(cluster_aris), np.min(cluster_aris)
+    metrics["interclustering_nmi"] = sum(interclustering_nmi)/len(interclustering_nmi)
     return metrics
 
 def clustering_acc(y_pred, y_true):

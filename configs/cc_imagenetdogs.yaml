@@ -1,10 +1,10 @@
 
 clustering_framework: cc
 project_name: deep_clustering
-group: cifar10
+group: imagenet_dogs
 run_name: CC
-dataset: cifar10
-dataset_path: "./data_folder/CIFAR10"
+dataset: imagenet_dogs
+dataset_path: "./data_folder/imagenet_dogs"
 
 backbone: resnet34
 proj_dim: 128
@@ -18,5 +18,5 @@ eval_interval: 10
 crop_size: 224
 batch_size: 256
 
-clusters: 10
+clusters: 15
 clusterings: 1

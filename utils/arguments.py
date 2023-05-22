@@ -3,7 +3,6 @@ import yaml
 import os
 import collections
 from utils.logger import logger_argparser
-from utils.ddp_utils import device_argparser
 from utils.misc import str2bool
 import wandb
 import random
@@ -131,15 +130,6 @@ def process_arg(v):
 
 
 def get_exp_dir(args, path=None):
-    """
-    Used to define the local and cloud directories for each experiment.
-    It creates the local project directory if it does not exist.
-    The function checks if a folder exists for that experiment and, if not, it creates it.
-    It then checks to find if previous runs exist with the same ID.
-    Depending on this, it assigns a path to the current experiment run (e.g. path/exp_X+1).
-    :param path: The path to the directory where runs of the experiment in question are stored.
-    :return: The path to the directory where the results of the current run will be stored.
-    """
     args.project_name = args.project_name or "default"
     if args.output_dir is None:
         args.output_dir = './experiments/' + args.project_name
@@ -182,3 +172,18 @@ def get_cloud_runs(project=None, entity=None):
                 {'entity': ru.path[0], 'project': ru.path[1], 'run_id': ru.path[2], 'run_name': ru.name})
     wandb.finish()
     return runs
+
+
+def device_argparser(args_dict=None):
+    parser = argparse.ArgumentParser(conflict_handler='resolve',add_help=False)
+
+    default_gpus = args_dict.get("gpus",None)
+    if default_gpus is not None and isinstance(default_gpus, str):
+        default_gpus = default_gpus.replace(" ","").split(",")
+        default_gpus = [int(dg) for dg in default_gpus]
+    parser.add_argument(
+        "--gpus", default=default_gpus, type=int, nargs="+", help="To be used if individual gpus are to be selected")
+    parser.add_argument(
+        "--num_workers", default=args_dict.get("num_workers", 2), type=int, help="Num workers per dataloader")
+    return parser
+

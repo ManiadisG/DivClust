@@ -13,6 +13,7 @@ import os
 import resource
 
 def main(args, logger):
+    torch.cuda.set_device(args.gpu)
     torch.manual_seed(args.seed)
     np.random.seed(args.seed)
     random.seed(args.seed)
@@ -24,7 +25,7 @@ def main(args, logger):
 
     logger.print("Loading model")
     model = build_model(args)
-    model.to(args.gpu)
+    model.to("cuda")
 
     train_steps = len(train_dataloader)*args.epochs
     optimizer = build_optimizer(model, train_steps, args)
@@ -47,8 +48,7 @@ if __name__ == '__main__':
         logger.finish()
     except Exception as e:
         msg = traceback.format_exc()
-        r = os.environ["RANK"]
-        f = open(f"{args.output_dir}/rank_{int(r)}_error_log.txt", "a")
+        f = open(f"{args.output_dir}_error_log.txt", "a")
         f.write(str(msg))
         f.close()
         logger.print(msg)

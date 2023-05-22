@@ -7,7 +7,8 @@ from torchvision.models.resnet import Bottleneck, BasicBlock, conv1x1
 
 class ResNet(nn.Module):
     def __init__(self, block, layers, zero_init_residual=False, groups=1, widen=1, width_per_group=64,
-                 replace_stride_with_dilation=None, norm_layer=None, layer0_Conv3=False, layer0_add_pooling=True, final_pooling="avg", *args, **kwargs):
+                 replace_stride_with_dilation=None, norm_layer=None, layer0_kernel=7, layer0_stride=2,
+                 layer0_padding=3, layer0_add_pooling=True, final_pooling="avg", *args, **kwargs):
         super(ResNet, self).__init__()
         if norm_layer is None:
             norm_layer = nn.BatchNorm2d
@@ -24,11 +25,8 @@ class ResNet(nn.Module):
         self.groups = groups
         self.base_width = width_per_group
 
+        # change padding 3 -> 2 compared to original torchvision code because added a padding layer
         num_out_filters = width_per_group * widen
-        if layer0_Conv3:
-            layer0_kernel, layer0_stride, layer0_padding = 3, 1, 1
-        else:
-            layer0_kernel, layer0_stride, layer0_padding = 7, 2, 3
         self.layer0 = self._make_layer_0(num_out_filters, norm_layer, layer0_kernel, layer0_stride, layer0_padding,
                                          layer0_add_pooling)
         self.layer1 = self._make_layer(block, num_out_filters, layers[0])
@@ -41,17 +39,15 @@ class ResNet(nn.Module):
         num_out_filters *= 2
         self.layer4 = self._make_layer(block, num_out_filters, layers[3], stride=2,
                                        dilate=replace_stride_with_dilation[2])
-
-        if final_pooling == "avg":
+        if final_pooling=="avg":
             self.final_pooling = nn.AdaptiveAvgPool2d((1, 1))
-        elif final_pooling == "max":
-            self.final_pooling = nn.AdaptiveMaxPool2d((1, 1))
+        elif final_pooling=="max":
+            self.final_pooling = nn.AdaptiveMaxPool2d((1,1))
         self.output_shape = self.inplanes
 
         for m in self.modules():
             if isinstance(m, nn.Conv2d):
-                nn.init.kaiming_normal_(
-                    m.weight, mode="fan_out", nonlinearity="relu")
+                nn.init.kaiming_normal_(m.weight, mode="fan_out", nonlinearity="relu")
             elif isinstance(m, (nn.BatchNorm2d, nn.GroupNorm)):
                 nn.init.constant_(m.weight, 1)
                 nn.init.constant_(m.bias, 0)
@@ -93,34 +89,31 @@ class ResNet(nn.Module):
 
         return nn.Sequential(*layers)
 
-    def forward(self, x, return_fmaps=None):
-        if return_fmaps is not None and return_fmaps == "last":
-            x = self.layer0(x)
-            x = self.layer1(x)
-            x = self.layer2(x)
-            x = self.layer3(x)
-            x = self.layer4(x)
-            return x
-        elif return_fmaps is not None and return_fmaps == "all":
-            fmaps = [self.layer0(x)]
-            for layer in [self.layer1, self.layer2, self.layer3, self.layer4]:
-                fmaps.append(layer(fmaps[-1]))
-            return fmaps[1:]
-        else:
-            x = self.layer0(x)
-            x = self.layer1(x)
-            x = self.layer2(x)
-            x = self.layer3(x)
-            x = self.layer4(x)
-            x = self.final_pooling(x)
-            x = torch.flatten(x, 1)
-            return x
+    def forward(self, x):
+        x = self.layer0(x)
+        x = self.layer1(x)
+        x = self.layer2(x)
+        x = self.layer3(x)
+        x = self.layer4(x)
+        x = self.final_pooling(x)
+        x = torch.flatten(x, 1)
+        return x
 
 
 @export_fn
 def resnet18(*args, **kwargs):
     return ResNet(BasicBlock, [2, 2, 2, 2],*args, **kwargs)
-    
+
+@export_fn
+def resnet34_medium(*args, **kwargs):
+    return ResNet(BasicBlock, [3, 4, 6, 3], layer0_add_pooling=False, *args, **kwargs)
+
+
+@export_fn
+def resnet34_small(*args, **kwargs):
+    return ResNet(BasicBlock, [3, 4, 6, 3], layer0_kernel=3, layer0_stride=1, layer0_padding=1,
+                  layer0_add_pooling=False, *args, **kwargs)
+                  
 @export_fn
 def resnet34(*args, **kwargs):
     return ResNet(BasicBlock, [3, 4, 6, 3], *args, **kwargs)

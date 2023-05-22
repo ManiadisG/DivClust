@@ -1,7 +1,6 @@
 from data.dataset_implementations import dataset_readers
 from data.transforms import CCTransforms
 from data.dataset_classes import ImageDataset
-from utils.misc import export_fn
 
 
 def _get_cc_datasets(data, labels, crop_size, blur=False, color_jitter_s=0.5, data_val=None,
