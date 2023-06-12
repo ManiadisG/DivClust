@@ -9,7 +9,7 @@ class PICA(nn.Module):
     def __init__(self, args):
         super(PICA, self).__init__()
         self.args = args
-        self.backbone = backbones.__dict__[args.backbone](args)
+        self.backbone = backbones.__dict__[args.backbone](**args.__dict__)
         self.clu_mlp = MultiheadLinear(self.backbone.output_shape, self.backbone.clusters, self.args.clusterings, True)
 
         self.PICALoss = PICALoss()
@@ -23,7 +23,7 @@ class PICA(nn.Module):
         p1, p2 = F.softmax(self.clu_mlp(f1), dim=-1), F.softmax(self.clu_mlp(f2), dim=-1)
         loss_pica = self.PICALoss(p1, p2)
 
-        diversity_loss, threshold, _ = self.DivLoss(torch.cat([p1, p2], dim=1), self.current_step)
+        diversity_loss, threshold, _ = self.DivLoss(p1, self.current_step)
         loss_ce_sum = sum(loss_pica) / self.args.clusterings
         diversity_loss = diversity_loss / self.args.clusterings
         loss = loss_ce_sum + diversity_loss

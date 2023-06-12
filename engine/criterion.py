@@ -227,7 +227,8 @@ def clustering_accuracy_metrics(cluster_labels, ground_truth):
         cluster_nmis), np.mean(cluster_nmis), np.min(cluster_nmis)
     metrics["max_cluster_ari"], metrics["mean_cluster_ari"], metrics["min_cluster_ari"] = np.max(
         cluster_aris), np.mean(cluster_aris), np.min(cluster_aris)
-    metrics["interclustering_nmi"] = sum(interclustering_nmi)/len(interclustering_nmi)
+    if clusterings>1:
+        metrics["interclustering_nmi"] = sum(interclustering_nmi)/len(interclustering_nmi)
     return metrics
 
 def clustering_acc(y_pred, y_true):

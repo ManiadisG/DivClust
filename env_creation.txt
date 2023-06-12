@@ -1,5 +1,0 @@
-conda create -n divclust_env python=3.8 &&
-conda activate divclust_env &&
-conda config --add channels conda-forge &&
-conda install pytorch==1.12.1 torchvision torchaudio cudatoolkit=11.3 -c pytorch &&
-pip install scipy wandb PyYAML scikit-learn termcolor matplotlib

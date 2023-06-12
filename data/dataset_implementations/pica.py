@@ -1,6 +1,6 @@
 from data.dataset_classes import ImageDataset
 from data.transforms import PICATransforms
-from data import dataset_readers
+from data.dataset_implementations import dataset_readers
 
 
 def _get_pica_datasets(data, labels, resize_shape, crop_size, norm_mean, norm_std, data_val=None, labels_val=None,

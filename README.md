@@ -48,12 +48,12 @@ We thank the authors of the above for making their code public.
 ## Citation
 If you use this repository, please cite:
 ```
-@inproceedings{divclust2023cvpr,
-    title={DivClust: Controlling Diversity in Deep Clustering},
-    author={Metaxas, Ioannis Maniadis and Tzimiropoulos, Georgios and Patras, Ioannis},
-    booktitle={Proceedings of the IEEE Conference on Computer Vision and Pattern Recognition (CVPR)},
-    month={June},
-    year={2023},
+@inproceedings{divclust2023,
+  title={DivClust: Controlling Diversity in Deep Clustering},
+  author={Metaxas, Ioannis Maniadis and Tzimiropoulos, Georgios and Patras, Ioannis},
+  booktitle={Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition},
+  pages={3418--3428},
+  year={2023}
 }
 ```
 

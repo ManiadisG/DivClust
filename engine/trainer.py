@@ -29,10 +29,11 @@ class Trainer:
             self.optimizer.zero_grad(set_to_none=True)
 
             idx, samples, annotations = batch
-            samples = samples.permute(1,0,2,3,4).to(device,non_blocking=True)
+            samples_weak = samples[0].to(device,non_blocking=True)
+            samples_strong = torch.cat(samples[1:],dim=0).to(device,non_blocking=True)
 
             with autocast(self.mixed_precision):
-                loss, metrics_dict = self.model(samples[0], samples[1])
+                loss, metrics_dict = self.model(samples_weak, samples_strong)
 
             self.scaler.scale(loss).backward()
             self.scaler.step(self.optimizer)

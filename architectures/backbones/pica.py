@@ -51,8 +51,8 @@ class ResNet34Model(nn.Module):
         self.layer4 = self._make_layer(BasicBlock, 256, 6, stride=2)
         self.layer5 = self._make_layer(BasicBlock, 512, 3, stride=2)
         self.avgpool = nn.Sequential(nn.AdaptiveAvgPool2d((1, 1)), nn.Flatten())
-        self.linear_heads = nn.ModuleList([nn.Linear(512, clusters) for p in range(clusterings)])
         self._initialise_weights_()
+        self.output_shape=512
 
     def run(self, x, target=None):
         if target is None or target > 5:
@@ -71,14 +71,7 @@ class ResNet34Model(nn.Module):
         x = self.layer4(x)
         x = self.layer5(x)
         x = self.avgpool(x)
-        features = x
-        x = torch.stack([self.linear_heads[k](x) for k in range(self.clusterings)])
-        if softmax:
-            x = F.softmax(x, -1)
-        if return_features:
-            return x, features
-        else:
-            return x
+        return x
 
     def _initialise_weights_(self):
         for y, m in enumerate(self.modules()):

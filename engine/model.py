@@ -9,6 +9,10 @@ def build_model(args, logger=None):
         from engine.CC import CC
         model = CC(args)
         model_name="CC"
+    if args.clustering_framework.lower() == "pica":
+        from engine.PICA import PICA
+        model = PICA(args)
+        model_name="PICA"
     if logger is not None:
         p_count, p_count_train = 0, 0
         for p in model.parameters():

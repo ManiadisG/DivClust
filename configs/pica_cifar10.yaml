@@ -1,0 +1,21 @@
+
+clustering_framework: pica
+project_name: deep_clustering
+group: cifar10
+run_name: PICA
+dataset: cifar10
+dataset_path: "./data_folder/CIFAR10"
+
+backbone: PICA_ResNet34
+
+optimizer: adam
+lr: 0.0001
+weight_decay: 0.
+
+epochs: 200
+eval_interval: 5
+crop_size: 224
+batch_size: 256
+
+clusters: 10
+clusterings: 1
