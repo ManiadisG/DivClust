@@ -29,11 +29,17 @@ class Trainer:
             self.optimizer.zero_grad(set_to_none=True)
 
             idx, samples, annotations = batch
-            samples_weak = samples[0].to(device,non_blocking=True)
-            samples_strong = torch.cat(samples[1:],dim=0).to(device,non_blocking=True)
 
-            with autocast(self.mixed_precision):
-                loss, metrics_dict = self.model(samples_weak, samples_strong)
+            if self.args.clustering_framework == "pica":
+                samples_weak = samples[0].to(device,non_blocking=True)
+                samples_strong = torch.cat(samples[1:],dim=0).to(device,non_blocking=True)
+                with autocast(self.mixed_precision):
+                    loss, metrics_dict = self.model(samples_weak, samples_strong)
+            elif self.args.clustering_framework == "cc":
+                v1 = samples[:, 0].to(device,non_blocking=True)
+                v2 = samples[:, 1].to(device,non_blocking=True)
+                with autocast(self.mixed_precision):
+                    loss, metrics_dict = self.model(v1, v2)
 
             self.scaler.scale(loss).backward()
             self.scaler.step(self.optimizer)
